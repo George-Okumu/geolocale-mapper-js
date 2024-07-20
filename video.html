@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Recorder</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <style>
+        video {
+            width: 300px;
+            height: 200px;
+            margin: 10px;
+        }
+
+        button {
+            margin: 10px;
+        }
+
+        #log {
+            margin-top: 10px;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+
+<body>
+
+    <section>
+        <video id="preview" autoplay muted class="hidden"></video>
+        <video id="recording" controls></video>
+        <div>
+            <div class="flex flex">
+                <button id="switchCameraButton" class="focus:outline-none text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 ml-4">Switch Camera</button>
+                <button id="startButton" class="focus:outline-none text-white bg-green-700 hover:bg-green-800 focus:ring-4 focus:ring-green-300 font-medium rounded-lg text-sm px-5 py-2.5 ml-4">Start Recording</button>
+                <button id="stopButton" class="focus:outline-none text-white bg-red-900 hover:bg-red-800 focus:ring-4 focus:ring-red-300 font-medium rounded-lg text-sm px-5 py-2.5 ml-4">Stop Recording</button>
+            </div>
+        </div>
+        <div id="log"></div>
+    </section>
+
+    <script>
+        let preview = document.getElementById("preview");
+        let recording = document.getElementById("recording");
+        let startButton = document.getElementById("startButton");
+        let stopButton = document.getElementById("stopButton");
+        let switchCameraButton = document.getElementById("switchCameraButton");
+        let logElement = document.getElementById("log");
+
+        let recorder;
+        let recordedChunks = [];
+        let currentCamera = 'user'; // Front camera
+
+        function log(msg) {
+            logElement.innerText += `${msg}\n`;
+        }
+
+        function startPreview() {
+            navigator.mediaDevices.getUserMedia({ video: { facingMode: currentCamera }, audio: true })
+                .then(stream => {
+                    preview.srcObject = stream;
+                    preview.classList.remove('hidden');
+                    recording.classList.add('hidden');
+                })
+                .catch(error => {
+                    log(`Error: ${error.message}`);
+                });
+        }
+
+        startButton.addEventListener("click", () => {
+            startPreview();
+            navigator.mediaDevices.getUserMedia({ video: { facingMode: currentCamera }, audio: true })
+                .then(stream => {
+                    preview.srcObject = stream;
+                    recorder = new MediaRecorder(stream);
+                    recordedChunks = []; // Clear previous recordings
+
+                    recorder.ondataavailable = (event) => {
+                        if (event.data.size > 0) {
+                            recordedChunks.push(event.data);
+                        }
+                    };
+
+                    recorder.onstop = () => {
+                        let recordedBlob = new Blob(recordedChunks, { type: "video/webm" });
+                        recording.src = URL.createObjectURL(recordedBlob);
+                        log(`Successfully recorded ${recordedBlob.size} bytes of ${recordedBlob.type} media.`);
+                    };
+
+                    recorder.start();
+                    log("Recording started...");
+                })
+                .catch(error => {
+                    log(`Error: ${error.message}`);
+                });
+        }, false);
+
+        stopButton.addEventListener("click", () => {
+            preview.classList.add('hidden');
+            recording.classList.remove('hidden');
+
+            if (recorder && recorder.state === "recording") {
+                recorder.stop();
+                preview.srcObject.getTracks().forEach(track => track.stop());
+                log("Recording stopped.");
+            }
+        }, false);
+
+        switchCameraButton.addEventListener("click", () => {
+            currentCamera = currentCamera === 'user' ? 'environment' : 'user';
+            startPreview();
+            log(`Switched to ${currentCamera === 'user' ? 'front' : 'rear'} camera.`);
+        }, false);
+    </script>
+</body>
+
+</html>
